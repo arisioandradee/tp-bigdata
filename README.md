@@ -2,11 +2,26 @@
 
 **E-commerce Data Pipeline: Streaming (Flink) & Batch (Spark)**
 
+**Grupo 9:** Arisio Soares Andrade Filho · Raul De Queiroz Moura · José Kayky Barbosa Coelho · Levi Marques Waterloo · Carlos Neuan Sampaio Silva
+
+## 🎬 Apresentação
+
+- Vídeo (até 5 min): [`docs/apresentacao.mp4`](docs/apresentacao.mp4)
+- Slides (PDF): [`docs/slide.pdf`](docs/slide.pdf)
+
+## 🧭 Visão Geral
+
+```text
+Gerador Python -> Flume -+-> Flink (janelas deslizantes + watermarks) -> HBase
+                         +-> HDFS (logs brutos) -> Spark (ETL + wide dependencies) -> Hive
+```
+
 ## 📁 Estrutura do Projeto
 
 ```text
 tp-bigdata/
 ├── docker/              # Dockerfiles e docker-compose para o ambiente
+├── docs/                # Vídeo da apresentação e slides em PDF
 ├── generator/           # Script Python (01gerador.py) para simulação de eventos
 ├── flume/               # Configuração do Apache Flume (flume.conf, log4j.properties)
 ├── flink/               # Jobs Apache Flink (Streaming, Janelas & Watermarks) + sink HBase
