@@ -1,0 +1,8 @@
+FROM probablyfine/flume:latest
+
+# O Flume empacota Guava 11.0.2, incompatível com o Guava 27 exigido pelo
+# Hadoop client (sink HDFS). Como o classpath do agente coloca /opt/flume/lib
+# antes dos jars do Hadoop, o Guava antigo "ganha" e quebra com
+# NoSuchMethodError em Configuration.set(). Removendo o jar antigo, o
+# classloader passa a usar o Guava mais novo vindo do HADOOP_HOME.
+RUN rm -f /opt/flume/lib/guava-11.0.2.jar

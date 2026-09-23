@@ -1,0 +1,281 @@
+version: '3.8'
+
+services:
+  # ---------------------------------------------------------------------------
+  # 1. Gerador de Eventos em Python 3
+  # ---------------------------------------------------------------------------
+  generator:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.generator
+    container_name: ecommerce_generator
+    volumes:
+      - ../logs:/logs
+    restart: always
+    networks:
+      - bigdata_net
+
+  # Extrai o cliente Hadoop da própria imagem do NameNode para um volume
+  # nomeado, permitindo que o agente Flume grave no HDFS (sink hdfs) sem
+  # precisar de uma imagem custom com o Hadoop client embutido.
+  hadoop-client-init:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    container_name: hadoop_client_init
+    entrypoint: ["/bin/sh", "-c", "cp -r /opt/hadoop-3.2.1/* /hadoop-client/ && echo 'hadoop client extraído com sucesso'"]
+    volumes:
+      - hadoop_client:/hadoop-client
+    networks:
+      - bigdata_net
+
+  # ---------------------------------------------------------------------------
+  # 2. Apache Flume Agent
+  # ---------------------------------------------------------------------------
+  flume:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.flume
+    container_name: flume_agent
+    volumes:
+      - ../flume:/opt/flume-config
+      - ../logs:/logs
+      - hadoop_client:/opt/hadoop-3.2.1:ro
+    environment:
+      - FLUME_AGENT_NAME=agent
+      - FLUME_JAVA_OPTS=-Xmx512m
+      - HADOOP_HOME=/opt/hadoop-3.2.1
+    depends_on:
+      hadoop-client-init:
+        condition: service_completed_successfully
+      generator:
+        condition: service_started
+      namenode:
+        condition: service_started
+    networks:
+      - bigdata_net
+
+  # ---------------------------------------------------------------------------
+  # 3. Hadoop HDFS (NameNode & DataNode)
+  # ---------------------------------------------------------------------------
+  namenode:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    container_name: namenode
+    restart: always
+    ports:
+      - "9870:9870"
+      - "9000:9000"
+    environment:
+      - CLUSTER_NAME=test
+    env_file:
+      - ./hadoop.env
+    networks:
+      - bigdata_net
+
+  datanode:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: datanode
+    restart: always
+    environment:
+      SERVICE_PRECONDITION: "namenode:9870"
+    env_file:
+      - ./hadoop.env
+    depends_on:
+      - namenode
+    networks:
+      - bigdata_net
+
+  # ---------------------------------------------------------------------------
+  # 4. Apache HBase Master
+  # ---------------------------------------------------------------------------
+  hbase-master:
+    image: dajobe/hbase:latest
+    container_name: hbase_master
+    ports:
+      - "16010:16010"
+      - "9090:9090"
+    networks:
+      - bigdata_net
+
+  # ---------------------------------------------------------------------------
+  # 5. Apache Hive: Metastore (Postgres) + Metastore service + HiveServer2
+  # ---------------------------------------------------------------------------
+  hive-metastore-postgresql:
+    image: bde2020/hive-metastore-postgresql:2.3.0
+    container_name: hive_metastore_postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hive -d metastore"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - bigdata_net
+
+  hive-metastore:
+    image: bde2020/hive:2.3.2-postgresql-metastore
+    container_name: hive_metastore
+    command: /opt/hive/bin/hive --service metastore
+    ports:
+      - "9083:9083"
+    environment:
+      SERVICE_PRECONDITION: "namenode:9870 datanode:9864 hive-metastore-postgresql:5432"
+    env_file:
+      - ./hadoop.env
+    restart: on-failure
+    depends_on:
+      namenode:
+        condition: service_started
+      datanode:
+        condition: service_started
+      hive-metastore-postgresql:
+        condition: service_healthy
+    networks:
+      - bigdata_net
+
+  hive-server:
+    image: bde2020/hive:2.3.2-postgresql-metastore
+    container_name: hive_server
+    ports:
+      - "10000:10000"
+    environment:
+      SERVICE_PRECONDITION: "hive-metastore:9083"
+    env_file:
+      - ./hadoop.env
+    restart: on-failure
+    depends_on:
+      - hive-metastore
+    networks:
+      - bigdata_net
+
+  # Executa uma única vez o DDL de criação das tabelas fato assim que o HiveServer2 sobe.
+  hive-init:
+    image: bde2020/hive:2.3.2-postgresql-metastore
+    container_name: hive_init
+    environment:
+      SERVICE_PRECONDITION: "hive-server:10000"
+    command: ["/opt/hive/bin/beeline", "-u", "jdbc:hive2://hive-server:10000", "-f", "/opt/hive_schema.sql"]
+    volumes:
+      - ../spark/hive_schema.sql:/opt/hive_schema.sql
+    restart: on-failure
+    depends_on:
+      - hive-server
+    networks:
+      - bigdata_net
+
+  # ---------------------------------------------------------------------------
+  # 6. Apache Flink Cluster (JobManager & TaskManager) + submissão do Job
+  # ---------------------------------------------------------------------------
+  # JobManager/TaskManager usam a imagem custom (Flink + Python + PyFlink +
+  # happybase), pois os Python workers rodam dentro do TaskManager.
+  flink-jobmanager:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.flink-job
+    container_name: flink_jobmanager
+    ports:
+      - "8081:8081"
+    command: jobmanager
+    environment:
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: flink-jobmanager
+    volumes:
+      - ../logs:/opt/flink-job/logs
+    networks:
+      - bigdata_net
+
+  flink-taskmanager:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.flink-job
+    container_name: flink_taskmanager
+    depends_on:
+      - flink-jobmanager
+    command: taskmanager
+    environment:
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: flink-jobmanager
+        taskmanager.numberOfTaskSlots: 2
+    volumes:
+      - ../logs:/opt/flink-job/logs
+    networks:
+      - bigdata_net
+
+  # Submete o job PyFlink ao cluster (flink run -> JobManager). O job le os
+  # arquivos rolados pelo Flume em logs/flink_stream, aplica janelas
+  # deslizantes + watermarks e grava os alertas de trend no HBase.
+  flink-job:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.flink-job
+    container_name: flink_job
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - >
+        mkdir -p /opt/flink-job/logs/flink_stream;
+        until /opt/flink/bin/flink list -m flink-jobmanager:8081 >/dev/null 2>&1; do sleep 3; done;
+        exec /opt/flink/bin/flink run -m flink-jobmanager:8081
+        -pyexec python3 -pyclientexec python3
+        -pyfs /opt/flink-job/hbase_sink.py
+        -py /opt/flink-job/flink_trend_topics.py
+    volumes:
+      - ../logs:/opt/flink-job/logs
+    depends_on:
+      - flink-jobmanager
+      - flink-taskmanager
+      - hbase-master
+    restart: on-failure
+    networks:
+      - bigdata_net
+
+  # ---------------------------------------------------------------------------
+  # 7. Apache Spark Master & Worker + submissão do Job de ETL Batch
+  # ---------------------------------------------------------------------------
+  spark-master:
+    image: bde2020/spark-master:3.3.0-hadoop3.3
+    container_name: spark_master
+    ports:
+      - "8080:8080"
+      - "7077:7077"
+    environment:
+      - INIT_DAEMON_STEP=setup_spark
+    networks:
+      - bigdata_net
+
+  spark-worker:
+    image: bde2020/spark-worker:3.3.0-hadoop3.3
+    container_name: spark_worker
+    depends_on:
+      - spark-master
+    environment:
+      - SPARK_MASTER=spark://spark-master:7077
+    networks:
+      - bigdata_net
+
+  # Job Spark de ETL batch: lê o histórico do HDFS (fallback local), cruza
+  # dados de conversão/logística (wide dependencies) e grava no Hive.
+  spark-job:
+    image: bde2020/spark-master:3.3.0-hadoop3.3
+    container_name: spark_job
+    user: root
+    volumes:
+      - ../spark:/opt/spark-job
+      - ../logs:/opt/spark-job/logs
+    working_dir: /opt/spark-job
+    entrypoint: >
+      /bin/bash -c "
+      sleep 20 &&
+      /spark/bin/spark-submit --master spark://spark-master:7077 spark_etl_batch.py"
+    depends_on:
+      - spark-master
+      - spark-worker
+      - namenode
+      - hive-metastore
+      - hive-init
+    restart: on-failure
+    networks:
+      - bigdata_net
+
+networks:
+  bigdata_net:
+    driver: bridge
+
+volumes:
+  hadoop_client:
