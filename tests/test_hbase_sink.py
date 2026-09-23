@@ -48,3 +48,24 @@ def test_write_alert_returns_false_on_missing_field():
     ok = sink.write_alert(json.dumps({"row_key": "abc"}))
     assert ok is False
     sink.table.put.assert_not_called()
+
+
+def test_write_alert_reconnects_and_retries_on_broken_connection():
+    sink = make_sink_with_mock_table()
+    sink.table.put.side_effect = [BrokenPipeError("Broken pipe"), None]
+    sink.close = MagicMock()
+    sink.open = MagicMock()
+    record = {
+        "row_key": "101_1700000000000",
+        "product_id": "101",
+        "click_count": 12,
+        "window_start": "2026-09-22 10:00:00",
+        "window_end": "2026-09-22 10:05:00",
+        "alert_trend": True,
+    }
+
+    ok = sink.write_alert(json.dumps(record))
+
+    assert ok is True
+    sink.open.assert_called_once()
+    assert sink.table.put.call_count == 2

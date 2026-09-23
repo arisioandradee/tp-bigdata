@@ -35,6 +35,20 @@ class HBaseSink:
         if self.connection is not None:
             self.connection.close()
 
+    def _put_with_retry(self, row_key, hbase_row):
+        """A conexão Thrift fica ociosa entre janelas e pode ser derrubada pelo
+        servidor (Broken pipe); reconecta e tenta de novo uma vez."""
+        try:
+            self.table.put(row_key, hbase_row)
+        except Exception as first_error:
+            logging.warning(f"[HBase Sink] Conexão perdida ({first_error}); reconectando...")
+            try:
+                self.close()
+            except Exception:
+                pass
+            self.open()
+            self.table.put(row_key, hbase_row)
+
     def write_alert(self, record_json):
         """
         Grava a família de colunas no HBase.
@@ -53,7 +67,7 @@ class HBaseSink:
                 b"cf_alerts:is_trend": str(record["alert_trend"]).encode("utf-8"),
             }
 
-            self.table.put(row_key.encode("utf-8"), hbase_row)
+            self._put_with_retry(row_key.encode("utf-8"), hbase_row)
             logging.info(f"[HBase Sink] Gravado com sucesso no HBase -> RowKey: {row_key}")
             return True
         except Exception as e:
