@@ -61,7 +61,7 @@ Este projeto fica na pasta `AP2/` do repositorio (a `AP1/` guarda o trabalho ant
 cd AP2
 
 # 1. configurar variaveis
-cp .env.example .env        # edite as senhas
+cp .env.example .env        # troque TODAS as senhas "troque-..." (veja abaixo como gerar)
 
 # 2. subir a infraestrutura base
 docker compose up -d
@@ -70,19 +70,25 @@ docker compose up -d
 docker compose ps
 ```
 
-Perfis opcionais:
+Todos os serviços (inclusive OpenLDAP, KDC Kerberos, Prometheus e Grafana) sobem com o mesmo comando; não há perfis opcionais.
+
+Para gerar senhas fortes de uma vez (PowerShell ou bash, com Python instalado):
 
 ```bash
-docker compose --profile security up -d      # OpenLDAP + KDC Kerberos
-docker compose --profile monitoring up -d    # Prometheus + Grafana
+python -c "import re,secrets,pathlib; t=pathlib.Path('.env.example').read_text(); pathlib.Path('.env').write_text(re.sub(r'=troque-[a-z-]+', lambda m: '='+secrets.token_urlsafe(18), t))"
 ```
 
 ### Subida do zero
 
-Medido com `docker compose down -v` seguido de `docker compose up -d --build` (volumes vazios, imagens em cache):
-todos os serviços saudáveis em cerca de **6 minutos** (o Kibana é o último). O `es-setup` espera a licença trial
-do Elasticsearch ser gerada e o `produtor` republica `data/processed` sozinho, então o índice se reconstrói sem
-passos manuais. Resultado conferido: 68 documentos no índice, lag 0, 35/35 testes da API.
+Medido de duas formas, com volumes vazios: `docker compose down -v` seguido de `docker compose up -d --build`
+(cerca de 6 minutos até tudo saudável, o Kibana é o último) e, em 21/11, uma **instalação limpa a partir do clone
+do GitHub** (sem `.env`, PDFs, cache de OCR nem tessdata; `.env` gerado do `.env.example`). Nela os containers
+ficaram de pé em cerca de 3 minutos e o `produtor` republicou `data/processed` sozinho: **6.405 documentos** no
+índice em mais ~2 minutos, 35/35 testes da API e o teste do Redis fora do ar (`api/testes/redis_fora.py`)
+passando. O `es-setup` espera a licença trial do Elasticsearch ser gerada; o primeiro start do Grafana roda as
+migrações do banco interno e leva alguns minutos (o healthcheck foi alargado para isso). Não há passos manuais
+além de criar o `.env`.
+
 ### Enderecos locais
 
 | Servico | URL / porta |

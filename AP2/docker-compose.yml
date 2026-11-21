@@ -249,6 +249,8 @@ services:
     healthcheck:
       <<: *hc
       test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health | grep -q ok"]
+      start_period: 120s   # o 1o start com volume vazio roda dezenas de migracoes do banco interno (~4 min)
+      retries: 30
     networks: [bigdata]
 
   elasticsearch-exporter:
