@@ -1,0 +1,82 @@
+{
+  "settings": {
+    "number_of_shards": 3,
+    "number_of_replicas": 0,
+    "analysis": {
+      "filter": {
+        "pt_stop": {"type": "stop", "stopwords": "_brazilian_"},
+        "pt_stemmer": {"type": "stemmer", "language": "brazilian"},
+        "sinonimos": {
+          "type": "synonym_graph",
+          "lenient": true,
+          "synonyms": ["__PREENCHIDO_POR_criar_indice.py__"]
+        }
+      },
+      "analyzer": {
+        "pt_index": {
+          "type": "custom",
+          "tokenizer": "standard",
+          "filter": ["lowercase", "asciifolding", "pt_stop", "pt_stemmer"]
+        },
+        "pt_search": {
+          "type": "custom",
+          "tokenizer": "standard",
+          "filter": ["lowercase", "asciifolding", "sinonimos", "pt_stop", "pt_stemmer"]
+        }
+      }
+    }
+  },
+  "mappings": {
+    "dynamic": "strict",
+    "properties": {
+      "id": {"type": "keyword"},
+      "ano": {"type": "integer"},
+      "area": {"type": "keyword"},
+      "curso": {"type": "keyword"},
+      "grau": {"type": "keyword"},
+      "componente": {"type": "keyword"},
+      "tipo_questao": {"type": "keyword"},
+      "numero": {"type": "integer"},
+      "anulada": {"type": "boolean"},
+      "texto_base": {"type": "text", "index_options": "offsets", "analyzer": "pt_index", "search_analyzer": "pt_search", "copy_to": "texto_completo"},
+      "enunciado": {"type": "text", "index_options": "offsets", "analyzer": "pt_index", "search_analyzer": "pt_search", "copy_to": "texto_completo"},
+      "alternativas": {
+        "properties": {
+          "A": {"type": "text", "index_options": "offsets", "analyzer": "pt_index", "search_analyzer": "pt_search", "copy_to": "texto_completo"},
+          "B": {"type": "text", "index_options": "offsets", "analyzer": "pt_index", "search_analyzer": "pt_search", "copy_to": "texto_completo"},
+          "C": {"type": "text", "index_options": "offsets", "analyzer": "pt_index", "search_analyzer": "pt_search", "copy_to": "texto_completo"},
+          "D": {"type": "text", "index_options": "offsets", "analyzer": "pt_index", "search_analyzer": "pt_search", "copy_to": "texto_completo"},
+          "E": {"type": "text", "index_options": "offsets", "analyzer": "pt_index", "search_analyzer": "pt_search", "copy_to": "texto_completo"}
+        }
+      },
+      "texto_completo": {"type": "text", "index_options": "offsets", "analyzer": "pt_index", "search_analyzer": "pt_search"},
+      "gabarito": {"type": "keyword"},
+      "padrao_resposta": {"type": "text", "index_options": "offsets", "analyzer": "pt_index", "search_analyzer": "pt_search"},
+      "tem_midia_nao_textual": {"type": "boolean"},
+      "midia": {
+        "properties": {
+          "pagina": {"type": "integer"},
+          "tipo": {"type": "keyword"},
+          "conversao": {"type": "keyword"},
+          "conteudo": {"type": "text", "index": false}
+        }
+      },
+      "tabelas_texto": {"type": "text", "index_options": "offsets", "analyzer": "pt_index", "search_analyzer": "pt_search", "copy_to": "texto_completo"},
+      "objetos_conhecimento": {"type": "keyword"},
+      "competencias": {"type": "keyword"},
+      "habilidades": {"type": "keyword"},
+      "fonte_metadados": {"type": "keyword"},
+      "origem": {
+        "properties": {
+          "pdf": {"type": "keyword"},
+          "pagina_inicio": {"type": "integer"},
+          "pagina_fim": {"type": "integer"},
+          "pdf_gabarito": {"type": "keyword"},
+          "pdf_padrao_resposta": {"type": "keyword"}
+        }
+      },
+      "extracao": {"type": "keyword"},
+      "extrator_versao": {"type": "keyword"}
+    }
+  }
+}

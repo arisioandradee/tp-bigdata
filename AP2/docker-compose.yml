@@ -1,0 +1,387 @@
+# TP2 Big Data - Grupo 9
+# Infra: Kafka (KRaft, SASL/GSSAPI), Elasticsearch (realm Kerberos), Kibana, Redis, OpenLDAP e KDC Kerberos.
+# Observabilidade: Prometheus + Grafana (painel ENADE provisionado) + exporters.
+
+name: tp2-bigdata
+
+x-healthcheck-defaults: &hc
+  interval: 10s
+  timeout: 5s
+  retries: 12
+  start_period: 20s
+
+services:
+  # ---------------------------------------------------------------- Kafka
+  kafka:
+    image: apache/kafka:3.8.0
+    container_name: kafka
+    hostname: kafka
+    ports:
+      - "9092:9092"   # acesso do host
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: INTERNAL://:29092,EXTERNAL://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
+      # Kerberos (SASL/GSSAPI) nos listeners de clientes e entre brokers. O CONTROLLER (9093) e
+      # apenas interno do quorum KRaft e nao e publicado.
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:SASL_PLAINTEXT,EXTERNAL:SASL_PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_SASL_ENABLED_MECHANISMS: GSSAPI
+      KAFKA_SASL_MECHANISM_INTER_BROKER_PROTOCOL: GSSAPI
+      KAFKA_SASL_KERBEROS_SERVICE_NAME: kafka
+      KAFKA_OPTS: "-Djava.security.auth.login.config=/etc/kafka/jaas/kafka_server_jaas.conf"
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      CLUSTER_ID: ${KAFKA_CLUSTER_ID}
+    depends_on:
+      kdc:
+        condition: service_healthy
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+      - keytabs:/keytabs:ro
+      - ./security/kafka:/etc/kafka/jaas:ro
+      - ./security/kerberos/krb5.conf:/etc/krb5.conf:ro
+    healthcheck:
+      <<: *hc
+      interval: 15s
+      timeout: 30s   # a JVM do script demora para iniciar
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server kafka:29092 --command-config /etc/kafka/jaas/admin.properties >/dev/null 2>&1"]
+    networks: [bigdata]
+
+  kafka-init:
+    image: apache/kafka:3.8.0
+    container_name: kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      TOPIC_PARTITIONS: ${KAFKA_TOPIC_PARTITIONS:-3}
+    volumes:
+      - keytabs:/keytabs:ro
+      - ./security/kafka:/etc/kafka/jaas:ro
+      - ./security/kerberos/krb5.conf:/etc/krb5.conf:ro
+      - ./scripts/create-topics.sh:/create-topics.sh:ro
+    entrypoint: ["/bin/bash", "/create-topics.sh"]
+    restart: "no"
+    networks: [bigdata]
+
+  # -------------------------------------------------------- Elasticsearch
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
+    container_name: elasticsearch
+    environment:
+      discovery.type: single-node
+      ES_JAVA_OPTS: ${ES_JAVA_OPTS:--Xms1g -Xmx1g}
+      cluster.name: enade-cluster
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
+      # Seguranca: usuario nativo (so administracao) + realm Kerberos (servicos). O realm Kerberos
+      # exige licenca trial/platinum; a trial de 30 dias e auto-gerada (suficiente para o laboratorio).
+      xpack.security.enabled: "true"
+      xpack.license.self_generated.type: trial
+      xpack.security.authc.realms.kerberos.kerb1.order: "2"
+      xpack.security.authc.realms.kerberos.kerb1.keytab.path: keytabs/elasticsearch.keytab
+      xpack.security.authc.realms.kerberos.kerb1.remove_realm_name: "false"
+    depends_on:
+      kdc:
+        condition: service_healthy
+    ports:
+      - "9200:9200"
+    ulimits:
+      memlock: { soft: -1, hard: -1 }
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+      - keytabs:/usr/share/elasticsearch/config/keytabs:ro
+      - ./security/kerberos/krb5.conf:/etc/krb5.conf:ro
+    healthcheck:
+      <<: *hc
+      test: ["CMD-SHELL", "curl -fs -u \"elastic:$$ELASTIC_PASSWORD\" http://localhost:9200/_security/_authenticate >/dev/null"]   # no no ar e seguranca pronta (nao depende do status dos indices internos)
+    networks: [bigdata]
+
+  # Papeis e mapeamento dos principals Kerberos no Elasticsearch (roda uma vez)
+  es-setup:
+    build: ./security/elastic
+    container_name: es-setup
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    environment:
+      ES_URL: http://elasticsearch:9200
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
+      KIBANA_PASSWORD: ${KIBANA_PASSWORD}
+      ES_EXPORTER_PASSWORD: ${ES_EXPORTER_PASSWORD}
+      KRB_REALM: ${KRB_REALM:-ENADE.LOCAL}
+    restart: "no"
+    networks: [bigdata]
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.15.3
+    container_name: kibana
+    depends_on:
+      es-setup:
+        condition: service_completed_successfully
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+      ELASTICSEARCH_USERNAME: kibana_system
+      ELASTICSEARCH_PASSWORD: ${KIBANA_PASSWORD}
+    ports:
+      - "5601:5601"
+    healthcheck:
+      <<: *hc
+      interval: 15s
+      retries: 40        # o Kibana leva alguns minutos para inicializar
+      start_period: 60s
+      test: ["CMD-SHELL", "curl -fs http://localhost:5601/api/status >/dev/null"]
+    networks: [bigdata]
+
+  # ---------------------------------------------------------------- Redis
+  redis:
+    image: redis:7.4-alpine
+    container_name: redis
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD}"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      <<: *hc
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    networks: [bigdata]
+
+  redis-insight:
+    image: redis/redisinsight:2.60
+    container_name: redis-insight
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "5540:5540"
+    volumes:
+      - redisinsight-data:/data
+    networks: [bigdata]
+
+  # ------------------------------------------------- Seguranca (profile)
+  ldap:
+    image: osixia/openldap:1.5.0
+    container_name: ldap
+    environment:
+      LDAP_ORGANISATION: ${LDAP_ORGANISATION:-UniCatolica Quixada}
+      LDAP_DOMAIN: ${LDAP_DOMAIN:-enade.local}
+      LDAP_ADMIN_PASSWORD: ${LDAP_ADMIN_PASSWORD}
+      LDAP_TLS: "false"
+    command: ["--copy-service"]
+    ports:
+      - "389:389"
+    volumes:
+      - ldap-data:/var/lib/ldap
+      - ldap-config:/etc/ldap/slapd.d
+    healthcheck:
+      <<: *hc
+      test: ["CMD-SHELL", "ldapsearch -x -H ldap://localhost -b dc=enade,dc=local -D cn=admin,dc=enade,dc=local -w \"$$LDAP_ADMIN_PASSWORD\" -s base >/dev/null"]
+    networks: [bigdata]
+
+  ldap-seed:
+    build: ./security/ldap
+    container_name: ldap-seed
+    depends_on:
+      ldap:
+        condition: service_healthy
+    environment:
+      LDAP_URL: ldap://ldap:389
+      LDAP_ADMIN_PASSWORD: ${LDAP_ADMIN_PASSWORD}
+      LDAP_ESTUDANTE_SENHA: ${LDAP_ESTUDANTE_SENHA}
+      LDAP_PROFESSOR_SENHA: ${LDAP_PROFESSOR_SENHA}
+    restart: "no"
+    networks: [bigdata]
+
+  kdc:
+    build: ./security/kerberos
+    container_name: kdc
+    hostname: kdc
+    environment:
+      KRB_REALM: ${KRB_REALM:-ENADE.LOCAL}
+      KRB_MASTER_PASSWORD: ${KRB_MASTER_PASSWORD}
+    ports:
+      - "88:88/udp"
+      - "88:88/tcp"
+    volumes:
+      - kdc-data:/var/lib/krb5kdc
+      - keytabs:/keytabs
+      - ./security/kerberos/krb5.conf:/etc/krb5.conf:ro
+    healthcheck:
+      <<: *hc
+      test: ["CMD-SHELL", "test -f /keytabs/.pronto"]
+    networks: [bigdata]
+
+  # --------------------------------------------------- Monitoramento (RNF06)
+  prometheus:
+    image: prom/prometheus:v2.55.0
+    container_name: prometheus
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    networks: [bigdata]
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    container_name: grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports:
+      - "3001:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on: [prometheus]
+    healthcheck:
+      <<: *hc
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health | grep -q ok"]
+    networks: [bigdata]
+
+  elasticsearch-exporter:
+    image: quay.io/prometheuscommunity/elasticsearch-exporter:v1.8.0
+    container_name: elasticsearch-exporter
+    command:
+      - --es.uri=http://exporter:${ES_EXPORTER_PASSWORD}@elasticsearch:9200
+      - --es.indices
+    depends_on:
+      es-setup:
+        condition: service_completed_successfully
+    networks: [bigdata]
+
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.66.0
+    container_name: redis-exporter
+    environment:
+      REDIS_ADDR: redis://redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks: [bigdata]
+
+  # ------------------------------------------------------------ Aplicacao
+  consumer:
+    build:
+      context: .
+      dockerfile: consumer/Dockerfile
+    container_name: consumer
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+      es-setup:
+        condition: service_completed_successfully
+    environment:
+      KAFKA_BOOTSTRAP: kafka:29092
+      ES_URL: http://elasticsearch:9200
+      ES_KERBEROS: "1"
+      KRB5_CLIENT_KTNAME: /keytabs/consumidor.keytab
+      LOTE: "100"
+      REDIS_HOST: redis          # invalida o cache de busca apos indexar
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      KAFKA_SASL_PRINCIPAL: consumidor@ENADE.LOCAL
+      KAFKA_SASL_KEYTAB: /keytabs/consumidor.keytab
+    volumes:
+      - keytabs:/keytabs:ro
+      - ./security/kerberos/krb5.conf:/etc/krb5.conf:ro
+    restart: unless-stopped
+    networks: [bigdata]
+
+  # Job unico: publica data/processed no Kafka no `up` (idempotente). Reexecutar: docker compose run --rm produtor
+  produtor:
+    build:
+      context: .
+      dockerfile: ingestion/Dockerfile
+    container_name: produtor
+    restart: "no"
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+    environment:
+      KAFKA_BOOTSTRAP: kafka:29092
+      KAFKA_SASL_PRINCIPAL: produtor@ENADE.LOCAL
+      KAFKA_SASL_KEYTAB: /keytabs/produtor.keytab
+    command: ["python", "ingestion/produtor.py", "--bootstrap", "kafka:29092", "--dir", "/data/processed"]
+    volumes:
+      - keytabs:/keytabs:ro
+      - ./security/kerberos/krb5.conf:/etc/krb5.conf:ro
+      - ./data/processed:/data/processed:ro
+    networks: [bigdata]
+
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    container_name: api
+    depends_on:
+      es-setup:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      ldap-seed:
+        condition: service_completed_successfully
+    environment:
+      ES_URL: http://elasticsearch:9200
+      ES_KERBEROS: "1"
+      KRB5_CLIENT_KTNAME: /keytabs/api.keytab
+      REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      DEV_ESTUDANTE_SENHA: ${DEV_ESTUDANTE_SENHA}
+      DEV_PROFESSOR_SENHA: ${DEV_PROFESSOR_SENHA}
+      CACHE_TTL: ${CACHE_TTL:-300}
+      AUTH_MODE: ${AUTH_MODE:-ldap}
+      LDAP_URL: ldap://ldap:389
+    volumes:
+      - keytabs:/keytabs:ro
+      - ./security/kerberos/krb5.conf:/etc/krb5.conf:ro
+    ports:
+      - "8000:8000"
+    healthcheck:
+      <<: *hc
+      test: ["CMD-SHELL", "python -c \"import urllib.request as u; u.urlopen('http://127.0.0.1:8000/health')\""]
+    restart: unless-stopped
+    networks: [bigdata]
+
+  web:
+    build: ./web
+    container_name: web
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "8080:80"
+    healthcheck:
+      <<: *hc
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null"]
+    restart: unless-stopped
+    networks: [bigdata]
+
+networks:
+  bigdata:
+    name: tp2-bigdata-net
+
+volumes:
+  kafka-data:
+  es-data:
+  redis-data:
+  redisinsight-data:
+  ldap-data:
+  ldap-config:
+  kdc-data:
+  keytabs:
+  prometheus-data:
+  grafana-data:

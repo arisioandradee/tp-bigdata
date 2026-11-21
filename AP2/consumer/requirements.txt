@@ -1,0 +1,6 @@
+# confluent-kafka e instalado no Dockerfile (precisa do librdkafka com GSSAPI)
+elasticsearch>=8.15,<9
+jsonschema>=4.23
+redis>=5.0
+gssapi>=1.8
+prometheus-client>=0.20

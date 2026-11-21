@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Acervo ENADE</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230f5e57'/%3E%3Cpath d='M9 22V10h8a4 4 0 0 1 0 8h-8' fill='none' stroke='white' stroke-width='3'/%3E%3C/svg%3E">
+</head>
+<body>
+
+<section id="tela-login" class="login" hidden>
+  <form id="form-login" class="login-caixa" autocomplete="on">
+    <h1>Acervo ENADE</h1>
+    <p>Busque questões de provas de 2014 a 2023, monte uma lista e exporte um simulado.</p>
+    <label>Usuário
+      <input name="usuario" autocomplete="username" required autofocus>
+    </label>
+    <label>Senha
+      <input name="senha" type="password" autocomplete="current-password" required>
+    </label>
+    <button class="primario" type="submit">Entrar</button>
+    <p id="login-erro" class="erro" role="alert" hidden></p>
+    <p class="nota">O acesso usa a conta do diretório da instituição. Estudantes buscam sem ver gabaritos; professores têm gabaritos, painel e exportação.</p>
+  </form>
+</section>
+
+<div id="app" hidden>
+  <header class="topo">
+    <div class="topo-marca">Acervo ENADE</div>
+    <nav class="abas" id="abas" aria-label="Seções">
+      <button data-aba="busca" class="ativa">Busca</button>
+      <button data-aba="painel" id="aba-painel" hidden>Painel</button>
+    </nav>
+    <div class="topo-direita">
+      <button id="btn-lista" class="secundario">Lista <span id="contagem-lista" class="contador">0</span></button>
+      <span id="usuario-info" class="usuario"></span>
+      <button id="btn-sair" class="texto">Sair</button>
+    </div>
+  </header>
+
+  <div id="aviso" class="aviso" role="status" hidden></div>
+
+  <main id="vista-busca" class="busca">
+    <aside class="filtros" aria-label="Filtros">
+      <details open>
+        <summary>Filtros</summary>
+        <label class="check"><input type="checkbox" id="f-anuladas" checked> Incluir questões anuladas</label>
+        <div id="facetas"></div>
+        <button id="limpar-filtros" class="texto">Limpar filtros</button>
+      </details>
+    </aside>
+
+    <section class="resultados">
+      <form id="form-busca" class="barra-busca" role="search">
+        <input id="q" type="search" placeholder="Pesquise por assunto, por exemplo: ética, sustentabilidade, banco de dados" aria-label="Texto da busca" autocomplete="off">
+        <button class="primario" type="submit">Buscar</button>
+      </form>
+      <p id="resumo" class="resumo" aria-live="polite"></p>
+      <div id="lista-questoes"></div>
+      <nav id="paginacao" class="paginacao" aria-label="Paginação"></nav>
+    </section>
+  </main>
+
+  <main id="vista-painel" class="painel" hidden>
+    <h2>Panorama do acervo</h2>
+    <div id="painel-metricas" class="metricas"></div>
+    <h3>Questões por curso</h3>
+    <div id="painel-cursos"></div>
+    <h3>Competências ao longo dos anos</h3>
+    <div id="painel-competencias"></div>
+  </main>
+
+  <aside id="gaveta" class="gaveta" aria-label="Lista de questões" hidden>
+    <div class="gaveta-topo">
+      <h2>Minha lista</h2>
+      <button id="fechar-gaveta" class="texto" aria-label="Fechar lista">Fechar</button>
+    </div>
+    <div id="itens-lista" class="itens-lista"></div>
+    <div class="gaveta-acoes">
+      <button id="exp-pdf" class="primario">Exportar PDF</button>
+      <button id="exp-json" class="secundario">Exportar JSON</button>
+      <button id="limpar-lista" class="texto">Limpar lista</button>
+    </div>
+  </aside>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,48 @@
+# Segredos
+.env
+*.keytab
+security/kerberos/keytabs/*
+!security/kerberos/keytabs/.gitkeep
+*.pem
+*.key
+*.jks
+
+# Dados brutos pesados (manter apenas data/samples no Git)
+data/raw/*
+!data/raw/.gitkeep
+# Volumes sinteticos dos experimentos (regeneraveis: bench/experimentos.py) e copias de seguranca locais
+data/bench/
+data/processed-*/
+
+# Cache do OCR e modelo de idioma do Tesseract
+data/cache/
+ingestion/tessdata/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Node
+node_modules/
+dist/
+
+# Resultados temporarios
+bench/results/*.tmp
+*.log
+
+# SO / editores
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# LaTeX
+docs/*.aux
+docs/*.log
+docs/*.out
+docs/*.synctex.gz
+
+# Documentos sinteticos dos experimentos de carga
+data/bench/

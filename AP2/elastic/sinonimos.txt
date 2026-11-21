@@ -1,0 +1,13 @@
+# Dicionario de sinonimos (formato Solr; uma regra por linha, termos equivalentes).
+# Usado apenas na analise de BUSCA (synonym_graph), entao pode ser atualizado
+# sem reindexar. Usar minusculas.
+etica, moral, deontologia
+cidadania, direitos humanos
+sustentabilidade, desenvolvimento sustentavel, meio ambiente
+inteligencia artificial, ia
+tecnologia da informacao, ti
+banco de dados, bd, sgbd
+desigualdade social, exclusao social
+violencia, agressao
+saude publica, saude coletiva
+educacao, ensino

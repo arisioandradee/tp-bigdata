@@ -1,0 +1,74 @@
+{
+  "sem_cache": {
+    "p50": {
+      "mediana": 132.7,
+      "min": 117.0,
+      "max": 153.7
+    },
+    "p95": {
+      "mediana": 294.9,
+      "min": 263.2,
+      "max": 357.8
+    },
+    "p99": {
+      "mediana": 411.4,
+      "min": 363.5,
+      "max": 503.1
+    },
+    "rodadas_que_atingiram_a_meta": "3 de 3"
+  },
+  "com_cache": {
+    "p50": {
+      "mediana": 29.3,
+      "min": 28.1,
+      "max": 32.6
+    },
+    "p95": {
+      "mediana": 61.1,
+      "min": 60.6,
+      "max": 80.9
+    },
+    "p99": {
+      "mediana": 91.4,
+      "min": 85.4,
+      "max": 114.6
+    },
+    "rodadas_que_atingiram_a_meta": "0 de 3"
+  },
+  "misto": {
+    "p50": {
+      "mediana": 36.8,
+      "min": 34.3,
+      "max": 40.6
+    },
+    "p95": {
+      "mediana": 108.1,
+      "min": 94.3,
+      "max": 125.3
+    },
+    "p99": {
+      "mediana": 205.4,
+      "min": 156.4,
+      "max": 233.4
+    },
+    "rodadas_que_atingiram_a_meta": "3 de 3"
+  },
+  "estresse": {
+    "p50": {
+      "mediana": 425.0,
+      "min": 400.4,
+      "max": 461.6
+    },
+    "p95": {
+      "mediana": 1216.1,
+      "min": 1007.6,
+      "max": 2211.4
+    },
+    "p99": {
+      "mediana": 1863.5,
+      "min": 1321.1,
+      "max": 7145.7
+    },
+    "rodadas_que_atingiram_a_meta": "2 de 3"
+  }
+}

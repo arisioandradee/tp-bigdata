@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "enade-questao",
+  "title": "Questao ENADE (1 documento = 1 questao)",
+  "type": "object",
+  "required": ["id", "ano", "area", "curso", "componente", "tipo_questao", "numero", "anulada", "enunciado", "origem"],
+  "properties": {
+    "id": {"type": "string", "description": "Deterministico: {ano}-{curso}-{fg|ce}-{q|d}{NN}. Vira o _id no Elasticsearch (idempotencia)."},
+    "ano": {"type": "integer"},
+    "area": {"type": "string"},
+    "curso": {"type": "string"},
+    "grau": {"type": "string"},
+    "componente": {"enum": ["FG", "CE"], "description": "Formacao Geral ou Componente Especifico"},
+    "tipo_questao": {"enum": ["objetiva", "discursiva"]},
+    "numero": {"type": "integer"},
+    "anulada": {"type": "boolean"},
+    "texto_base": {"type": "string"},
+    "enunciado": {"type": "string"},
+    "alternativas": {
+      "type": "object",
+      "propertyNames": {"enum": ["A", "B", "C", "D", "E"]},
+      "additionalProperties": {"type": "string"}
+    },
+    "gabarito": {"type": ["string", "null"], "description": "Letra correta; null se discursiva ou anulada"},
+    "padrao_resposta": {"type": ["string", "null"], "description": "Apenas discursivas"},
+    "tem_midia_nao_textual": {"type": "boolean"},
+    "midia": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["pagina", "tipo", "conversao"],
+        "properties": {
+          "pagina": {"type": "integer"},
+          "tipo": {"enum": ["imagem", "diagrama_ou_tabela", "tabela"]},
+          "conversao": {"enum": ["pendente", "latex", "mermaid", "markdown"]},
+          "conteudo": {"type": ["string", "null"]}
+        }
+      }
+    },
+    "tabelas_texto": {"type": "string", "description": "Texto simples das tabelas detectadas (para busca)"},
+    "objetos_conhecimento": {"type": "array", "items": {"type": "string"}},
+    "competencias": {"type": "array", "items": {"type": "string"}},
+    "habilidades": {"type": "array", "items": {"type": "string"}},
+    "fonte_metadados": {"enum": ["oficial", "inferido", "ausente"], "description": "Origem de competencias/habilidades/objetos"},
+    "origem": {
+      "type": "object",
+      "required": ["pdf", "pagina_inicio", "pagina_fim"],
+      "properties": {
+        "pdf": {"type": "string"},
+        "pagina_inicio": {"type": "integer"},
+        "pagina_fim": {"type": "integer"},
+        "pdf_gabarito": {"type": ["string", "null"]},
+        "pdf_padrao_resposta": {"type": ["string", "null"]}
+      }
+    },
+    "extracao": {"enum": ["texto", "ocr"], "description": "Como o texto foi obtido"},
+    "extrator_versao": {"type": "string"}
+  }
+}

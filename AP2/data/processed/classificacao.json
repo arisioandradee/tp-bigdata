@@ -1,0 +1,15 @@
+{
+  "treino_questoes_unicas": 15,
+  "acuracia_leave_one_out": 0.8,
+  "acuracia_classe_mais_frequente": 0.533,
+  "inferidas_por_ano": {
+    "2014": 10,
+    "2017": 10,
+    "2018": 270,
+    "2019": 290,
+    "2021": 300,
+    "2022": 260,
+    "2023": 280
+  },
+  "aviso": "amostra de treino pequena; competencia inferida e apenas uma sugestao, marcada como tal"
+}

@@ -1,0 +1,18 @@
+﻿{
+    "depois":  {
+                   "hits":  110355,
+                   "misses":  5585,
+                   "consultas":  115940,
+                   "hit_rate":  0.9518,
+                   "versao":  "858",
+                   "ttl_s":  300
+               },
+    "antes":  {
+                  "hits":  79615,
+                  "misses":  4247,
+                  "consultas":  83862,
+                  "hit_rate":  0.9494,
+                  "versao":  "857",
+                  "ttl_s":  300
+              }
+}

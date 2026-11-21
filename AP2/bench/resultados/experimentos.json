@@ -1,0 +1,51 @@
+{
+  "vazao": {
+    "documentos": 11150,
+    "publicacao_s": 40.2,
+    "publicacao_msg_s": 839.8,
+    "ate_indexar_tudo_s": 228.1,
+    "vazao_ponta_a_ponta_docs_s": 48.9,
+    "bulk_p50_s": 0.37676056338028163,
+    "bulk_p95_s": 0.9277777777777776,
+    "lag_maximo": 9950.0,
+    "indexados_final": 11150,
+    "completo": true,
+    "executado_em": "2026-11-20T23:21:37"
+  },
+  "falha-consumidor": {
+    "documentos": 11150,
+    "indexados_no_momento_da_falha": 2300,
+    "lag_com_consumidor_parado": 8950,
+    "tempo_parado_s": 19.4,
+    "tempo_ate_recuperar_s": 180.2,
+    "indexados_final": 11150,
+    "perdidos": 0,
+    "reprocessados_na_retomada": 100,
+    "executado_em": "2026-11-20T23:25:38"
+  },
+  "falha-kafka": {
+    "documentos": 11150,
+    "indexados_no_momento_da_falha": 2300,
+    "kafka_parado_s": 43.8,
+    "kafka_saudavel_apos_s": 44.6,
+    "tempo_ate_recuperar_s": 241.0,
+    "indexados_final": 11150,
+    "perdidos": 0,
+    "consumidor_antes": "running|0|2026-11-21T11:53:40.422587273Z",
+    "consumidor_depois": "running|0|2026-11-21T11:53:40.422587273Z",
+    "consumidor_reiniciou": false,
+    "executado_em": "2026-11-21T09:06:44"
+  },
+  "falha-es": {
+    "documentos": 11150,
+    "indexados_no_momento_da_falha": 2300,
+    "elasticsearch_parado_s": 55.2,
+    "lag_durante_a_queda": 8850,
+    "elasticsearch_voltou_apos_s": 88.9,
+    "tempo_ate_recuperar_s": 173.5,
+    "indexados_final": 11150,
+    "perdidos": 0,
+    "consumidor_reiniciou": false,
+    "executado_em": "2026-11-21T09:13:42"
+  }
+}
