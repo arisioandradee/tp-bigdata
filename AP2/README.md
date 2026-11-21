@@ -26,8 +26,6 @@ API REST (com cache Redis) e interface web, com autenticacao via Kerberos e LDAP
 
 ## Estrutura do repositorio
 
-Este projeto fica na pasta `AP2/` do repositorio (a `AP1/` guarda o trabalho anterior). Todos os comandos abaixo partem de dentro de `AP2/`.
-
 ```
 .
 ├── docker-compose.yml     # infraestrutura (Kafka, Elastic, Kibana, Redis, ...)
@@ -44,8 +42,7 @@ Este projeto fica na pasta `AP2/` do repositorio (a `AP1/` guarda o trabalho ant
 ├── bench/                 # testes de carga e resultados
 ├── scripts/               # utilitarios (topicos, seed, falha induzida)
 ├── data/
-│   ├── raw/               # PDFs (fora do Git, baixados por ingestion/coleta.py)
-│   ├── processed/         # questoes.jsonl (6.405 questoes), rejeitadas.jsonl e relatorios
+│   ├── raw/               # PDFs (fora do Git)
 │   └── samples/           # amostra validada (>= 50 questoes)
 └── docs/                  # relatorio SBC e figuras
 ```
@@ -58,8 +55,6 @@ Este projeto fica na pasta `AP2/` do repositorio (a `AP1/` guarda o trabalho ant
 ## Como executar
 
 ```bash
-cd AP2
-
 # 1. configurar variaveis
 cp .env.example .env        # troque TODAS as senhas "troque-..." (veja abaixo como gerar)
 

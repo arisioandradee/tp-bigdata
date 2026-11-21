@@ -38,8 +38,14 @@ MARCA_DAGUA = re.compile(r"(?:VALID\s*IN\w?P\s*\d{0,4}|E[NM]ADE\s*20\d{2})+", re
 RUIDO = re.compile(r"^\*R\d+\*$|^[ÁA]rea livre$|^RASCUNHO$|^\d{1,3}$", re.I)
 
 
+CONTROLE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
+FONTE_RUIM = re.compile("[ƀ-˿̀-ͯϢ-Ͽ]")  # letras de fonte sem mapeamento Unicode
+
+
 def corrigir_ligaturas(t):
-    """O PDF quebra 'ti', 'fi', 'fl', 'tt' com espaco: 'questi onario' -> 'questionario'."""
+    """O PDF quebra 'ti', 'fi', 'fl', 'tt' com espaco ('questi onario' -> 'questionario'), codifica a ligadura
+    'ti' como 'Ɵ' ('invesƟmento') e a 'tt' como 'Ʃ' ('TwiƩer'), e deixa caracteres de controle no texto."""
+    t = CONTROLE.sub("", t.replace("Ɵ", "ti").replace("Ʃ", "tt"))
     while True:
         n = LIGATURA.sub(lambda m: m.group(1) or m.group(2), t)
         if n == t:
@@ -49,6 +55,10 @@ def corrigir_ligaturas(t):
 
 def ilegivel(t):
     """Fonte com ToUnicode quebrado gera simbolos fora do alfabeto latino."""
+    t = t.replace("Ɵ", "").replace("Ʃ", "")  # ligaturas conhecidas (ver corrigir_ligaturas), nao sao lixo
+    # pagina com um trecho corrompido no meio de texto bom (ex.: uma figura com fonte quebrada)
+    if len(FONTE_RUIM.findall(t)) >= 15:
+        return True
     letras = [c for c in t if c.isalpha()]
     if len(letras) < 40:
         return False
@@ -312,6 +322,12 @@ def ler_pdf(caminho, cabecalho):
         m = _midia_pagina(pg)
         if m:
             midia[i] = m
+    # Cadernos com enfeite vetorial em quase toda pagina (ex.: 2025) marcariam tudo como "diagrama": quando mais de
+    # 80% das paginas tem esse sinal, ele e decoracao do layout e e descartado (imagens e tabelas reais ficam).
+    vetoriais = [p for p, t in midia.items() if t == "diagrama_ou_tabela"]
+    if len(doc) and len(vetoriais) > 0.8 * len(doc):
+        for p in vetoriais:
+            del midia[p]
     return linhas, midia, paginas_ocr, tabelas
 
 
@@ -492,7 +508,21 @@ def ler_padroes(caminho):
     """Lista de textos de padrao de resposta, na ordem das discursivas."""
     if not caminho:
         return []
-    txt = corrigir_ligaturas("\n".join(p.get_text() for p in pymupdf.open(caminho)))
+    stem = Path(caminho).stem
+    paginas = []
+    for i, pg in enumerate(pymupdf.open(caminho), 1):
+        t = pg.get_text()
+        if ilegivel(t):  # padrao com fonte quebrada (ex.: 2022): le a pagina por OCR, com cache em disco
+            cache = CACHE_OCR / f"{stem}-padrao-p{i}.txt"
+            if cache.exists():
+                t = cache.read_text(encoding="utf-8")
+            else:
+                configurar_ocr()
+                t = pg.get_text(textpage=pg.get_textpage_ocr(language="por", dpi=300, full=True))
+                CACHE_OCR.mkdir(parents=True, exist_ok=True)
+                cache.write_text(t, encoding="utf-8")
+        paginas.append(t)
+    txt = corrigir_ligaturas("\n".join(paginas))
     partes = re.split(r"PADR[ÃA]O\s+(?:DE\s+)?RESPOSTA", txt, flags=re.I)[1:]
     out = []
     for p in partes:

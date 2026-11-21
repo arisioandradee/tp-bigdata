@@ -25,6 +25,23 @@ def test_ligaturas_quebradas_sao_coladas():
     assert ex.corrigir_ligaturas("questi onario") == "questionario"
 
 
+def test_ligaduras_codificadas_como_letras_estranhas():
+    assert ex.corrigir_ligaturas("invesƟmento no TwiƩer") == "investimento no Twitter"
+
+
+def test_caracteres_de_controle_sao_removidos():
+    assert ex.corrigir_ligaturas("an\x03\x04alise") == "analise"
+
+
+def test_ligadura_ti_nao_faz_a_pagina_ser_ilegivel():
+    assert not ex.ilegivel("invesƟmento produƟvidade jusƟficaƟva " * 20)
+
+
+def test_trecho_corrompido_no_meio_de_texto_bom_e_ilegivel():
+    lixo = "ƚƌǀǁǂǃǄǅǆǇǈǉǊǋǌǍǎǏǐǑǒǓǔǕǖǗǘǙǚǛǜ"
+    assert ex.ilegivel("Texto perfeitamente legivel e longo. " * 40 + lixo)
+
+
 def test_texto_normal_nao_e_ilegivel():
     assert not ex.ilegivel("Assinale a opção correta sobre o texto apresentado na questão anterior, " * 3)
 
