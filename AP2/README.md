@@ -289,27 +289,3 @@ Vazão média por rodada: 136, 110, 131 req/s. Requisições por rodada: 45170, 
 Cuidado metodológico: rodadas feitas enquanto outros containers disputavam as mesmas CPUs variaram muito
 (p95 sem cache entre 295 e 1.524 ms), então os números acima vêm de rodadas com o ambiente isolado. Mais lições em
 [docs/licoes-e-gargalos.md](docs/licoes-e-gargalos.md).
-## Estado atual
-
-- [x] Estrutura de pastas e infraestrutura inicial no Compose
-- [x] Infra no ar (Kafka, Elasticsearch, Redis) e topicos criados
-- [x] Indice do acervo (1.691 PDFs) e extrator piloto (SI 2021)
-- [x] Produtor Kafka com DLQ
-- [ ] Extracao dos PDFs com fonte corrompida (OCR) e demais cursos/anos
-- [ ] Conversao de formulas e diagramas (LLM)
-- [x] Consumidor Kafka -> Elasticsearch (idempotência, DLQ e falha induzida testadas)
-- [ ] Mapping e consultas no Elasticsearch
-- [x] API, cache Redis e carrinho (exportação PDF/JSON)
-- [ ] Cliente web
-- [ ] Kerberos e LDAP integrados
-- [ ] Testes de carga e resiliencia
-- [ ] Relatorio e video
-
-## Seguranca no Git
-
-Nenhuma credencial e versionada. Use `.env` (ignorado) e mantenha keytabs fora do
-repositorio. Apenas `.env.example` com valores ficticios e commitado.
-
-## Divisao de tarefas
-
-A preencher conforme a equipe distribuir as frentes.
